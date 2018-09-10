@@ -225,7 +225,7 @@ uint8_t MGC3130reqFW[] = {0x0c, 0x00, 0x00, 0x06, 0x83, 0x00, 0x00, 0x00, 0x00, 
 
 void MGC3130_handleSensorData(){
       if(!MGC3130broadcastXYZ){
-        if( MGC_data.out.outputConfigMask.gestureInfo && MGC_data.out.gestureInfo.gestureCode > 0 && MGC_data.out.systemInfo.airWheelValid){
+        if( MGC_data.out.outputConfigMask.gestureInfo && MGC_data.out.gestureInfo.gestureCode > 0){
           MGC3130_handleGesture();
         }
 
