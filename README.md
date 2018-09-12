@@ -15,7 +15,7 @@ WIP-driver to use a MGC3130-board in TASMOTA (currently tested with an NodeMCU a
 ## COMMANDS: (will likely change in the future)
 * SENSOR91 0 - stop cursor mode (enable gestures)
 * SENSOR91 1 - start cursor mode (disable gestures)
-* SENSOR91 2 - stop airwheel mode (enable circle gestures: CW and CCW)
+* SENSOR91 2 - stop airwheel mode (enable circle gestures: CW and CCW) are published
 
 ## CONSIDERATIONS:
 This is an extemely versatile sensor and the main problem is not to get it to work somehow in TASMOTA, but to make it usable in a sensible way. We can measure and publish all kinds of data in parallel, but this will likely end up in an unusable situation. 
