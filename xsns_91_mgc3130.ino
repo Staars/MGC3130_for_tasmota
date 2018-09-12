@@ -1,3 +1,5 @@
+// Not working anymore
+
 /*
   xsns_91_MGC3130.ino - Support for I2C MGC3130 Electric Field Sensor for Sonoff-Tasmota
 
@@ -45,15 +47,15 @@
 #if defined(USE_SHT) || defined(USE_APDS9960) || defined(USE_TSL2561)
   #warning **** Turned off conflicting drivers SHT and USE_APDS9960 ****
   #ifdef USE_SHT
-  #undef USE_SHT          // Turn off some drivers ... might be too many
-  #endif
+  #undef USE_SHT          // Turn off some drivers for performance reasons
+  #endif                  // atm this has to be done in user_config_override.h !!
   #ifdef USE_APDS9960
   #undef USE_APDS9960
   #endif
   #ifdef USE_TSL2561
   #undef USE_TSL2561
   #endif
-/*#ifdef USE_MPU6050
+  #ifdef USE_MPU6050
   #undef USE_MPU6050
   #endif
   #ifdef USE_SERIAL_BRIDGE
@@ -61,7 +63,7 @@
   #endif
   #ifdef USE_DISPLAY
   #undef USE_DISPLAY
-  #endif*/
+  #endif
 #endif
 
 #define MGC3130_I2C_ADDR         0x42
@@ -70,10 +72,8 @@
 #define MGC3130_reset           16//=D0 NodeMCU     // reset pin - hardcoded until we have a better solution
 
 
-uint8_t MGC3130addr;
-uint8_t MGC3130type = 0;
-char MGC3130stype[6];
-
+bool MGC3130_type = false;
+char MGC3130stype[7];
 
 
 #define MGC3130_SYSTEM_STATUS 0x15
@@ -215,29 +215,44 @@ uint8_t MGC3130_touchTimeout = 0;
 bool MGC3130broadcastXYZ = false;
 
 
-
 // predefined messages
 uint8_t MGC3130autoCal[] = {0x10, 0x00, 0x00, 0xA2, 0x80, 0x00 , 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t MGC3130disableAirwheel[] = {0x10, 0x00, 0x00, 0xA2, 0x90, 0x00 , 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00};
-uint8_t MGC3130reqFW[] = {0x0c, 0x00, 0x00, 0x06, 0x83, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 
+void MGC3130_triggerTele(){
+    mqtt_data[0] = '\0';
+    if (MqttShowSensor()) {
+      MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);
+    #ifdef USE_RULES
+      RulesTeleperiod();  // Allow rule based HA messages
+    #endif  // USE_RULES
+    }
+}
 
 void MGC3130_handleSensorData(){
       if(!MGC3130broadcastXYZ){
         if( MGC_data.out.outputConfigMask.gestureInfo && MGC_data.out.gestureInfo.gestureCode > 0){
           MGC3130_handleGesture();
+          MGC3130_triggerTele();
         }
 
         if ( MGC_data.out.outputConfigMask.touchInfo && MGC3130_touchTimeout == 0){
           MGC3130_handleTouch();
+          MGC3130_triggerTele();
         }
 
         if(MGC_data.out.outputConfigMask.airWheelInfo && MGC_data.out.systemInfo.airWheelValid){
           MGC3130_handleAirWheel();
+          MGC3130_triggerTele();
         }
       }
-
+      else{
+        //trigger xyz messages
+        if(MGC_data.out.systemInfo.positionValid){
+          MGC3130_triggerTele();
+          }
+      }
 }
 
 void MGC3130_sendMessage(uint8_t data[], uint8_t length){
@@ -289,14 +304,6 @@ void MGC3130_handleGesture(){
     break;
   }
   //AddLog_P(LOG_LEVEL_DEBUG, log);
-
-  mqtt_data[0] = '\0';
-  if (MqttShowSensor()) {
-    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);
-  #ifdef USE_RULES
-    RulesTeleperiod();  // Allow rule based HA messages
-  #endif  // USE_RULES
-  }
 }
 
 void MGC3130_handleTouch(){
@@ -387,14 +394,6 @@ void MGC3130_handleTouch(){
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TH_S"));
     }
   //AddLog_P(LOG_LEVEL_DEBUG, log);
-
-  mqtt_data[0] = '\0';
-  if (MqttShowSensor()) {
-    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);
-  #ifdef USE_RULES
-    RulesTeleperiod();  // Allow rule based HA messages
-  #endif  // USE_RULES
-  }
 }
 
 void MGC3130_handleAirWheel(){
@@ -408,18 +407,7 @@ void MGC3130_handleAirWheel(){
       if(MGC3130_rotValue > MGC3130_MAX_ROTVALUE){
         MGC3130_rotValue = MGC3130_MAX_ROTVALUE;
       }
-
-        mqtt_data[0] = '\0';
-        if (MqttShowSensor()) {
-          MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);
-        #ifdef USE_RULES
-          RulesTeleperiod();  // Allow rule based HA messages
-        #endif  // USE_RULES
-        }
-
 }
-
-
 
 void MGC3130_handleSystemStatus(){
   //Serial.println("Got System status");
@@ -440,8 +428,8 @@ bool MGC3130_receiveMessage(){
           loaderVersion[0] = MGC_data.fw.loaderVersion[0];
           loaderVersion[1] = MGC_data.fw.loaderVersion[1];
           loaderPlatform = MGC_data.fw.loaderPlatform;
-          snprintf_P(MGC3130_firmwareInfo, sizeof(MGC3130_firmwareInfo), PSTR("%s"), MGC_data.fw.fwVersion);
-          MGC3130_firmwareInfo[20] = '\0'; // not used atm
+          snprintf_P(MGC3130_firmwareInfo, sizeof(MGC3130_firmwareInfo), PSTR("FW: %s"), MGC_data.fw.fwVersion);
+          MGC3130_firmwareInfo[20] = '\0';
           break;
       }
     return true;
@@ -482,13 +470,8 @@ void MGC3130_loop()
 
 bool MGC3130_detect(void)
 {
-  if (MGC3130type) {
+  if (MGC3130_type){
     return true;
-  }
-
-  if (!I2cDevice(MGC3130_I2C_ADDR))
-  {
-    return false;
   }
 
   pinMode(MGC3130_xfer, INPUT_PULLUP);
@@ -505,6 +488,7 @@ bool MGC3130_detect(void)
     snprintf_P(log_data, sizeof(log_data), S_LOG_I2C_FOUND_AT, MGC3130stype, MGC3130_I2C_ADDR);
     AddLog(LOG_LEVEL_DEBUG);
     MGC3130_currentGesture[0] = '\0';
+    MGC3130_type = true;
   } else {
     snprintf_P(log_data, sizeof(log_data), PSTR("MGC3130 did not respond at address 0x%x"), MGC3130_I2C_ADDR);
     AddLog(LOG_LEVEL_DEBUG);
@@ -518,7 +502,7 @@ bool MGC3130_detect(void)
 
 void MGC3130_show(boolean json)
 {
-  if (!MGC3130type) {
+  if (!MGC3130_type) {
     return;
   }
 /*
@@ -546,7 +530,7 @@ void MGC3130_show(boolean json)
     {
       if(MGC_data.out.systemInfo.positionValid){
         snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"X\":%u,\"Y\":%u,\"Z\":%u}"),
-        mqtt_data, MGC3130stype, MGC_data.out.x/256, MGC_data.out.y/256, MGC_data.out.z/256);
+        mqtt_data, MGC3130stype, MGC_data.out.x/64, MGC_data.out.y/64, MGC_data.out.z/64);
       }
     }
     else{
@@ -610,7 +594,7 @@ boolean Xsns91(byte function)
   if (i2c_flg) {
     if (FUNC_INIT == function) {
       MGC3130_detect();
-    } else if (MGC3130type) {
+    } else if (MGC3130_type) {
       switch (function) {
         case FUNC_EVERY_50_MSECOND:
             MGC3130_loop();
