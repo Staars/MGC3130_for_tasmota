@@ -9,7 +9,7 @@ WIP-driver to use a MGC3130-board in TASMOTA (currently tested with an NodeMCU a
 ## EXPECTED BEHAVIOUR:
 - after boot gestures (FLICK, EDGE_FLICK, TOUCH, TAP, DOUBLE_TAP) will be sensed and published via MQTT 
 - the airwheel gesture will be sensed and published as "Rot" via MQTT with values between 0 and 1023
-- after entering cursor mode the values for x,y,z will be sensed and published via MQTT
+- after entering 3d cursor mode the values for x,y,z will be sensed and published via MQTT with values between 0 and 1023
 - after stopping airwheel mode circle gestures ((COUNTER)CLOCKWISE)
 
 ## COMMANDS: (will likely change in the future)
