@@ -9,7 +9,7 @@ WIP-driver to use a MGC3130-board in TASMOTA (currently tested with an NodeMCU a
 ## EXPECTED BEHAVIOUR:
 - after boot gestures (FLICK, EDGE_FLICK, TOUCH, TAP, DOUBLE_TAP) will be sensed and published via MQTT 
 - you can select different modes with the COMMANDS, touch will always be sensed
-- the airwheel gesture will be sensed and published as "Rot" via MQTT with values between 0 and 1023
+- the airwheel gesture will be sensed and published as "AW" via MQTT with values between 0 and 1023 - clockwise up
 - after entering 3d cursor mode the values for x,y,z will be sensed and published via MQTT with values between 0 and 1023
 - at the moment the circle gestures ((COUNTER)CLOCKWISE) must be activated with the COMMAND: SENSOR91 1 (we must wait 250 ms after the start and can not activate it in the init function -> we will deal with it later on)
 
