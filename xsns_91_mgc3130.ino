@@ -73,7 +73,7 @@
 
 
 bool MGC3130_type = false;
-char MGC3130stype[7];
+char MGC3130stype[8];
 
 
 #define MGC3130_SYSTEM_STATUS 0x15
@@ -208,17 +208,20 @@ char MGC3130_currentGesture[12];
 int8_t MGC3130_delta, MGC3130_lastrotation = 0;
 int16_t MGC3130_rotValue, MGC3130_lastSentRotValue = 0;
 
+uint16_t MGC3130_lastSentX, MGC3130_lastSentY, MGC3130_lastSentZ = 0;
+
 uint8_t hwRev[2], loaderVersion[2], loaderPlatform = 0;
 char MGC3130_firmwareInfo[20];
 
 uint8_t MGC3130_touchTimeout = 0;
-bool MGC3130broadcastXYZ = false;
+
+uint8_t MGC3130_mode = 1; // 1-gesture; 2-airwheel; 3-position
 
 
 // predefined messages
 uint8_t MGC3130autoCal[] = {0x10, 0x00, 0x00, 0xA2, 0x80, 0x00 , 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t MGC3130disableAirwheel[] = {0x10, 0x00, 0x00, 0xA2, 0x90, 0x00 , 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00};
-
+uint8_t MGC3130enableAirwheel[] = {0x10, 0x00, 0x00, 0xA2, 0x90, 0x00 , 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00};
 
 void MGC3130_triggerTele(){
     mqtt_data[0] = '\0';
@@ -231,24 +234,24 @@ void MGC3130_triggerTele(){
 }
 
 void MGC3130_handleSensorData(){
-      if(!MGC3130broadcastXYZ){
+      if ( MGC_data.out.outputConfigMask.touchInfo && MGC3130_touchTimeout == 0){
+        MGC3130_handleTouch();
+        MGC3130_triggerTele();
+      }
+
+      if(MGC3130_mode == 1){
         if( MGC_data.out.outputConfigMask.gestureInfo && MGC_data.out.gestureInfo.gestureCode > 0){
           MGC3130_handleGesture();
           MGC3130_triggerTele();
         }
-
-        if ( MGC_data.out.outputConfigMask.touchInfo && MGC3130_touchTimeout == 0){
-          MGC3130_handleTouch();
-          MGC3130_triggerTele();
-        }
-
+      }
+      if(MGC3130_mode == 2){
         if(MGC_data.out.outputConfigMask.airWheelInfo && MGC_data.out.systemInfo.airWheelValid){
           MGC3130_handleAirWheel();
           MGC3130_triggerTele();
         }
       }
-      else{
-        //trigger xyz messages
+      if(MGC3130_mode == 3){
         if(MGC_data.out.systemInfo.positionValid){
           MGC3130_triggerTele();
           }
@@ -451,12 +454,31 @@ bool MGC3130_readData()
       MGC_data.buffer[i] = Wire.read();
       i++;
       }
-
     digitalWrite(MGC3130_xfer, HIGH);
     pinMode(MGC3130_xfer, INPUT);
     success = true;
   }
   return success;
+}
+
+void MGC3130_nextMode(){
+  if (MGC3130_mode < 3){
+    MGC3130_mode++;
+  }
+  else{
+    MGC3130_mode = 1;
+  }
+  switch(MGC3130_mode){ // there is more to be done
+    case 1:
+    MGC3130_sendMessage(MGC3130disableAirwheel,16);
+    break;
+    case 2:
+    MGC3130_sendMessage(MGC3130enableAirwheel,16);
+    break;
+    case 3:
+    MGC3130_sendMessage(MGC3130disableAirwheel,16);
+    break;
+  }
 }
 
 void MGC3130_loop()
@@ -526,25 +548,27 @@ void MGC3130_show(boolean json)
 
 
   if (json) {
-    if (MGC3130broadcastXYZ)
+    if (MGC3130_mode == 3)
     {
-      if(MGC_data.out.systemInfo.positionValid){
+      if(MGC_data.out.systemInfo.positionValid && !(MGC_data.out.x == MGC3130_lastSentX && MGC_data.out.y == MGC3130_lastSentY && MGC_data.out.z == MGC3130_lastSentZ)){
         snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"X\":%u,\"Y\":%u,\"Z\":%u}"),
         mqtt_data, MGC3130stype, MGC_data.out.x/64, MGC_data.out.y/64, MGC_data.out.z/64);
+        MGC3130_lastSentX = MGC_data.out.x;
+        MGC3130_lastSentY = MGC_data.out.y;
+        MGC3130_lastSentZ = MGC_data.out.z;
       }
     }
-    else{
-      if (MGC3130_currentGesture[0] != '\0' && !MGC3130broadcastXYZ){
-          snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"%s\":1}"), mqtt_data, MGC3130stype, MGC3130_currentGesture);
-          MGC3130_currentGesture[0] = '\0';
+    if (MGC3130_mode == 2){
+      if (MGC_data.out.systemInfo.airWheelValid && (MGC3130_rotValue != MGC3130_lastSentRotValue)){
+          snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"AW\":%i}"), mqtt_data, MGC3130stype, MGC3130_rotValue);
+          MGC3130_lastSentRotValue = MGC3130_rotValue;
         }
-      else{
-        if (MGC_data.out.systemInfo.airWheelValid && (MGC3130_rotValue != MGC3130_lastSentRotValue)){
-            snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"Rot\":%i}"), mqtt_data, MGC3130stype, MGC3130_rotValue);
-            MGC3130_lastSentRotValue = MGC3130_rotValue;
-          }
-      }
     }
+
+    if (MGC3130_currentGesture[0] != '\0'){
+        snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"%s\":1}"), mqtt_data, MGC3130stype, MGC3130_currentGesture);
+        MGC3130_currentGesture[0] = '\0';
+        }
   }
 #ifdef USE_WEBSERVER
  else {
@@ -570,15 +594,21 @@ bool MGC3130CommandSensor()
   boolean serviced = true;
 
   switch (XdrvMailbox.payload) {
-    case 0: // Off
-            MGC3130broadcastXYZ = false;
+    case 0: // cycle through the modes
+      MGC3130_nextMode();
       break;
-    case 1: // On
-            MGC3130broadcastXYZ = true;
+    case 1: // gesture & touch
+      MGC3130_mode = 1;
+      MGC3130_sendMessage(MGC3130disableAirwheel,16);
       break;
-    case 2: // On
-            MGC3130_sendMessage(MGC3130disableAirwheel,16);
+    case 2: // airwheel & touch
+      MGC3130_mode = 2;
+      MGC3130_sendMessage(MGC3130enableAirwheel,16);
       break;
+    case 3: // position & touch
+      MGC3130_mode = 3;
+      MGC3130_sendMessage(MGC3130disableAirwheel,16);
+    break;
   }
   return serviced;
 }
