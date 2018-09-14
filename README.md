@@ -8,14 +8,19 @@ WIP-driver to use a MGC3130-board in TASMOTA (currently tested with an NodeMCU a
 
 ## EXPECTED BEHAVIOUR:
 - after boot gestures (FLICK, EDGE_FLICK, TOUCH, TAP, DOUBLE_TAP) will be sensed and published via MQTT 
+- you can select different modes with the COMMANDS, touch will always be sensed
 - the airwheel gesture will be sensed and published as "Rot" via MQTT with values between 0 and 1023
 - after entering 3d cursor mode the values for x,y,z will be sensed and published via MQTT with values between 0 and 1023
-- after stopping airwheel mode circle gestures ((COUNTER)CLOCKWISE)
+- at the moment the circle gestures ((COUNTER)CLOCKWISE) must be activated with the COMMAND: SENSOR91 1 (we must wait 250 ms after the start and can not activate it in the init function -> we will deal with it later on)
 
 ## COMMANDS: (will likely change in the future)
-* SENSOR91 0 - stop cursor mode (enable gestures)
-* SENSOR91 1 - start cursor mode (disable gestures)
-* SENSOR91 2 - stop airwheel mode (enable circle gestures: CW and CCW) are published
+* SENSOR91 0 - next mode
+* SENSOR91 1 - gesture mode 
+* SENSOR91 2 - airwheel mode
+* SENSOR91 2 - position mode (ATTENTION: this will send a lot of data!)
+
+a possible solution to cycle through the modes only with the sensor by double tapping the centre is using RULES:
+rule1 on Tele-MGC3130#DT_C do sensor91 0 endon
 
 ## CONSIDERATIONS:
 This is an extemely versatile sensor and the main problem is not to get it to work somehow in TASMOTA, but to make it usable in a sensible way. We can measure and publish all kinds of data in parallel, but this will likely end up in an unusable situation. 
@@ -26,7 +31,6 @@ To make the MQTT messages not too long, some useful abbreviations have to be fou
 
 ## TO-BE-DONE:
 - Filtering of the TOUCH messages
-- Rework of the commands -> make useful different modes (e.g. split gestures and airwheel)
 ...
 
 
