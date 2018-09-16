@@ -19,15 +19,15 @@ WIP-driver to use a MGC3130-board in TASMOTA (currently tested with an NodeMCU a
 * SENSOR91 2 - airwheel mode
 * SENSOR91 2 - position mode (ATTENTION: this will send a lot of data!)
 
-a possible solution to cycle through the modes only with the sensor by double tapping the centre is using RULES:
-rule1 on Tele-MGC3130#DT_C do sensor91 0 endon
-or with a "long" touch of a second
-rule1 on Tele-MGC3130#TH_C > 20 do sensor91 0 endon
+a possible solution to cycle through the modes only with the sensor by double tapping the centre is using RULES:  
+rule1 on Tele-MGC3130#DT_C do sensor91 0 endon  
+or with a "long" touch of a second  
+rule1 on Tele-MGC3130#TH_C > 20 do sensor91 0 endon  
 
 ## CONSIDERATIONS:
-This is an extemely versatile sensor and the main problem is not to get it to work somehow in TASMOTA, but to make it usable in a sensible way. We can measure and publish all kinds of data in parallel, but this will likely end up in an unusable situation. 
-It is important to have a basic understanding of the sensor, to not get confused with seemingly unreasonable messages (DOUBLE TAP triggers a TOUCH (or more than one), then a TAP (after the first lift of the finger) and then a DOUBLE TAP.
-The naming conventions of the gestures are according to the data sheets from Microchip, because if we only would have simple FLICKS, it would have made it easy to use: UP, DOWN, LEFT, RIGHT. But we have EDGLE FLICKS and various TOUCHES too, and so the direction would be  ambigous. That's whay we (have to) use NORTH-SOUTH, EAST-WEST ... and NORTH, SOUTH, .... and CENTRE.
+This is an extemely versatile sensor and the main problem is not to get it to work somehow in TASMOTA, but to make it usable in a sensible way. We can measure and publish all kinds of data in parallel, but this will likely end up in an unusable situation.   
+It is important to have a basic understanding of the sensor, to not get confused with seemingly unreasonable messages (DOUBLE TAP triggers a TOUCH (or more than one), then a TAP (after the first lift of the finger) and then a DOUBLE TAP.  
+The naming conventions of the gestures are according to the data sheets from Microchip, because if we only would have simple FLICKS, it would have made it easy to use: UP, DOWN, LEFT, RIGHT. But we have EDGLE FLICKS and various TOUCHES too, and so the direction would be  ambigous. That's whay we (have to) use NORTH-SOUTH, EAST-WEST ... and NORTH, SOUTH, .... and CENTRE.  
 To make the MQTT messages not too long, some useful abbreviations have to be found. This ist definitly work in progress.
 
 
