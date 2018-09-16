@@ -38,33 +38,14 @@
  * MGC3130 - Electric Field Sensor
  *
  * Adaption for TASMOTA: Christian Baars
+ * based on various implementations from Pimoroni, jspark311, hoverlabs and scjurgen
  *
  * I2C Address: 0x42
  *
  * Wiring: SDA/SCL as usual plus RESET and TRANSFER -> 4 Wires
 \*********************************************************************************************/
 
-#if defined(USE_SHT) || defined(USE_APDS9960) || defined(USE_TSL2561)
-  #warning **** Turned off conflicting drivers SHT and USE_APDS9960 ****
-  #ifdef USE_SHT
-  #undef USE_SHT          // Turn off some drivers for performance reasons
-  #endif                  // atm this has to be done in user_config_override.h !!
-  #ifdef USE_APDS9960
-  #undef USE_APDS9960
-  #endif
-  #ifdef USE_TSL2561
-  #undef USE_TSL2561
-  #endif
-  #ifdef USE_MPU6050
-  #undef USE_MPU6050
-  #endif
-  #ifdef USE_SERIAL_BRIDGE
-  #undef USE_SERIAL_BRIDGE
-  #endif
-  #ifdef USE_DISPLAY
-  #undef USE_DISPLAY
-  #endif
-#endif
+#warning **** It is recommended to disable all unneeded I2C-drivers ****
 
 #define MGC3130_I2C_ADDR         0x42
 
@@ -93,6 +74,7 @@ char MGC3130stype[8];
 
 #define MGC3130_MIN_ROTVALUE            0
 #define MGC3130_MAX_ROTVALUE            1023
+#define MGC3130_MIN_ZVALUE              32768 // if we fly under the radar, we do not report anything
 
 
 #ifdef USE_WEBSERVER
@@ -214,6 +196,9 @@ uint8_t hwRev[2], loaderVersion[2], loaderPlatform = 0;
 char MGC3130_firmwareInfo[20];
 
 uint8_t MGC3130_touchTimeout = 0;
+uint16_t MGC3130_touchCounter = 1; // measure how long you touch the surface in loop cycles
+uint32_t MGC3130_touchTimeStamp = millis();
+bool MGC3130_triggeredByTouch = false;
 
 uint8_t MGC3130_mode = 1; // 1-gesture; 2-airwheel; 3-position
 
@@ -235,8 +220,10 @@ void MGC3130_triggerTele(){
 
 void MGC3130_handleSensorData(){
       if ( MGC_data.out.outputConfigMask.touchInfo && MGC3130_touchTimeout == 0){
-        MGC3130_handleTouch();
-        MGC3130_triggerTele();
+        if (MGC3130_handleTouch()){
+            MGC3130_triggeredByTouch = true;
+            MGC3130_triggerTele();
+        }
       }
 
       if(MGC3130_mode == 1){
@@ -252,7 +239,7 @@ void MGC3130_handleSensorData(){
         }
       }
       if(MGC3130_mode == 3){
-        if(MGC_data.out.systemInfo.positionValid){
+        if(MGC_data.out.systemInfo.positionValid && (MGC_data.out.z > MGC3130_MIN_ZVALUE)){
           MGC3130_triggerTele();
           }
       }
@@ -309,7 +296,7 @@ void MGC3130_handleGesture(){
   //AddLog_P(LOG_LEVEL_DEBUG, log);
 }
 
-void MGC3130_handleTouch(){
+bool MGC3130_handleTouch(){
   //char log[LOGSZ];
   bool success = false; // if we find a touch of higher order, we are done
     if  (MGC_data.out.touchInfo.doubleTapCentre && !success){
@@ -317,86 +304,103 @@ void MGC3130_handleTouch(){
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("DT_C"));
     MGC3130_touchTimeout = 5;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.doubleTapEast && !success){
     //snprintf_P(log, sizeof(log), PSTR("DTAP_EAST"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("DT_E"));
     MGC3130_touchTimeout = 5;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.doubleTapNorth && !success){
     //snprintf_P(log, sizeof(log), PSTR("DTAP_NORTH"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("DT_N"));
     MGC3130_touchTimeout = 5;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.doubleTapWest && !success){
     //snprintf_P(log, sizeof(log), PSTR("DTAP_WEST"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("DT_W"));
     MGC3130_touchTimeout = 5;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.doubleTapSouth && !success){
     //snprintf_P(log, sizeof(log), PSTR("DTAP_SOUTH"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("DT_S"));
     MGC3130_touchTimeout = 5;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     if (MGC_data.out.touchInfo.tapCentre && !success){
     //snprintf_P(log, sizeof(log), PSTR("TAP_CENTRE"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TP_C"));
     MGC3130_touchTimeout = 2;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.tapEast && !success){
     //snprintf_P(log, sizeof(log), PSTR("TAP_EAST"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TP_E"));
     MGC3130_touchTimeout = 2;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.tapNorth && !success){
     //snprintf_P(log, sizeof(log), PSTR("TAP_NORTH"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TP_N"));
     MGC3130_touchTimeout = 2;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.tapWest && !success){
     //snprintf_P(log, sizeof(log), PSTR("TAP_WEST"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TP_W"));
     MGC3130_touchTimeout = 2;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.tapSouth && !success){
     //snprintf_P(log, sizeof(log), PSTR("TAP_SOUTH"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TP_S"));
     MGC3130_touchTimeout = 2;
     success = true;
+    MGC3130_touchCounter = 1;
     }
     else if (MGC_data.out.touchInfo.touchCentre && !success){
     //snprintf_P(log, sizeof(log), PSTR("TOUCH_CENTRE"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TH_C"));
     success = true;
+    MGC3130_touchCounter++; // This will reset to 0 after touching for approx. 1h and 50 minutes ;)
     }
     else if (MGC_data.out.touchInfo.touchEast && !success){
     //snprintf_P(log, sizeof(log), PSTR("TOUCH_EAST"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TH_E"));
     success = true;
+    MGC3130_touchCounter++;
     }
     else if (MGC_data.out.touchInfo.touchNorth && !success){
     //snprintf_P(log, sizeof(log), PSTR("TOUCH_NORTH"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TH_N"));
     success = true;
+    MGC3130_touchCounter++;
     }
     else if (MGC_data.out.touchInfo.touchWest && !success){
     //snprintf_P(log, sizeof(log), PSTR("TOUCH_WEST"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TH_W"));
     success = true;
+    MGC3130_touchCounter++;
     }
     else if (MGC_data.out.touchInfo.touchSouth && !success){
     //snprintf_P(log, sizeof(log), PSTR("TOUCH_SOUTH"));
     snprintf_P(MGC3130_currentGesture, sizeof(MGC3130_currentGesture), PSTR("TH_S"));
+    success = true;
+    MGC3130_touchCounter++;
     }
   //AddLog_P(LOG_LEVEL_DEBUG, log);
+  return success;
 }
 
 void MGC3130_handleAirWheel(){
@@ -433,6 +437,7 @@ bool MGC3130_receiveMessage(){
           loaderPlatform = MGC_data.fw.loaderPlatform;
           snprintf_P(MGC3130_firmwareInfo, sizeof(MGC3130_firmwareInfo), PSTR("FW: %s"), MGC_data.fw.fwVersion);
           MGC3130_firmwareInfo[20] = '\0';
+          // Serial.print(MGC3130_firmwareInfo);
           break;
       }
     return true;
@@ -468,7 +473,7 @@ void MGC3130_nextMode(){
   else{
     MGC3130_mode = 1;
   }
-  switch(MGC3130_mode){ // there is more to be done
+  switch(MGC3130_mode){ // there is more to be done in the future
     case 1:
     MGC3130_sendMessage(MGC3130disableAirwheel,16);
     break;
@@ -527,17 +532,7 @@ void MGC3130_show(boolean json)
   if (!MGC3130_type) {
     return;
   }
-/*
-  char x_chr[5];
-  char y_chr[5];
-  char z_chr[5];
-  sprintf (x_chr, "%u", MGC_data.out.x/256);
-  sprintf (y_chr, "%u", MGC_data.out.y/256);
-  sprintf (z_chr, "%u", MGC_data.out.z/256);
 
-  char rot_chr[5];
-  sprintf (rot_chr, "%i", MGC3130_rotValue);
-*/
   char status_chr[1];
   if(MGC_data.out.systemInfo.DSPRunning){
     sprintf (status_chr, "1");
@@ -548,16 +543,18 @@ void MGC3130_show(boolean json)
 
 
   if (json) {
-    if (MGC3130_mode == 3)
+    if (MGC3130_mode == 3 && !MGC3130_triggeredByTouch)
     {
       if(MGC_data.out.systemInfo.positionValid && !(MGC_data.out.x == MGC3130_lastSentX && MGC_data.out.y == MGC3130_lastSentY && MGC_data.out.z == MGC3130_lastSentZ)){
         snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"X\":%u,\"Y\":%u,\"Z\":%u}"),
-        mqtt_data, MGC3130stype, MGC_data.out.x/64, MGC_data.out.y/64, MGC_data.out.z/64);
+        mqtt_data, MGC3130stype, MGC_data.out.x/64, MGC_data.out.y/64, (MGC_data.out.z-(uint16_t)MGC3130_MIN_ZVALUE)/64);
         MGC3130_lastSentX = MGC_data.out.x;
         MGC3130_lastSentY = MGC_data.out.y;
         MGC3130_lastSentZ = MGC_data.out.z;
       }
     }
+    MGC3130_triggeredByTouch = false;
+
     if (MGC3130_mode == 2){
       if (MGC_data.out.systemInfo.airWheelValid && (MGC3130_rotValue != MGC3130_lastSentRotValue)){
           snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"AW\":%i}"), mqtt_data, MGC3130stype, MGC3130_rotValue);
@@ -566,8 +563,12 @@ void MGC3130_show(boolean json)
     }
 
     if (MGC3130_currentGesture[0] != '\0'){
-        snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"%s\":1}"), mqtt_data, MGC3130stype, MGC3130_currentGesture);
+        if (millis() - MGC3130_touchTimeStamp > 220 ){
+          MGC3130_touchCounter = 1;
+        }
+        snprintf_P(mqtt_data, sizeof(mqtt_data), PSTR("%s,\"%s\":{\"%s\":%u}"), mqtt_data, MGC3130stype, MGC3130_currentGesture, MGC3130_touchCounter);
         MGC3130_currentGesture[0] = '\0';
+        MGC3130_touchTimeStamp = millis();
         }
   }
 #ifdef USE_WEBSERVER
@@ -584,9 +585,10 @@ void MGC3130_show(boolean json)
  * Command  | Payload | Description
  * ---------|---------|--------------------------
  * Sensor91 |         | ...
- * Sensor91 | 0       | Gesture Mode and rotation value
- * Sensor91 | 1       | "Cursor"-mode with x,y,z
- * Sensor91 | 2       | disable airwheel -> enable CW and CCW gesture
+ * Sensor91 | 0       | Next Mode - cycle through the modes
+ * Sensor91 | 1       | Gesture Mode
+ * Sensor91 | 2       | Airwheel Mode
+ * Sensor91 | 3       | Position Mode with x,y,z - z must be higher than half of the max. sensing height
 \*********************************************************************************************/
 
 bool MGC3130CommandSensor()
