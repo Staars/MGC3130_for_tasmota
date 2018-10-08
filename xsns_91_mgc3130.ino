@@ -1,5 +1,3 @@
-// Not working anymore
-
 /*
   xsns_91_MGC3130.ino - Support for I2C MGC3130 Electric Field Sensor for Sonoff-Tasmota
 
