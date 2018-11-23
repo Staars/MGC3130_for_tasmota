@@ -1,3 +1,7 @@
+# This driver is now part of TASMOTA. Further development will happen there
+
+
+
 # MGC3130_for_tasmota
 WIP-driver to use a MGC3130-board in TASMOTA (currently tested with an NodeMCU and a SKYWRITER board).
 
